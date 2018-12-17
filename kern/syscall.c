@@ -477,7 +477,9 @@ static int
 sys_time_msec(void)
 {
 	// LAB 6: Your code here.
-	panic("sys_time_msec not implemented");
+	//panic("sys_time_msec not implemented");
+
+	return time_msec();
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -507,26 +509,21 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_page_alloc:
 		return sys_page_alloc((envid_t) a1, (void *) a2, (int) a3);
 	case SYS_page_map:
-		return sys_page_map((envid_t) a1,
-		                    (void *) a2,
-		                    (envid_t) a3,
-		                    (void *) a4,
-		                    (int) a5,
-		                    1);
+		return sys_page_map((envid_t) a1, (void *) a2, (envid_t) a3, (void *) a4, (int) a5, 1);
 	case SYS_page_unmap:
 		return sys_page_unmap((envid_t) a1, (void *) a2);
 	case SYS_env_set_status:
 		return sys_env_set_status((envid_t) a1, (int) a2);
 	case SYS_ipc_try_send:
-		return sys_ipc_try_send(
-		        (envid_t) a1, (uint32_t) a2, (void *) a3, (unsigned) a4);
+		return sys_ipc_try_send((envid_t) a1, (uint32_t) a2, (void *) a3, (unsigned) a4);
 	case SYS_ipc_recv:
 		return sys_ipc_recv((void *) a1);
 	case SYS_env_set_pgfault_upcall:
 		return sys_env_set_pgfault_upcall((envid_t) a1, (void *) a2);
 	case SYS_env_set_trapframe:
-		return sys_env_set_trapframe((envid_t) a1,
-		                             (struct Trapframe *) a2);
+		return sys_env_set_trapframe((envid_t) a1, (struct Trapframe *) a2);
+	case SYS_time_msec:
+		return sys_time_msec();
 	default:
 		return -E_INVAL;
 	}
