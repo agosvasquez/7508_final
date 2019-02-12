@@ -8,8 +8,93 @@
 volatile uint8_t *e1000_bar0;
 
 // Array de Transmit Descriptors
-struct e1000_tx_desc *tx_descriptors = NULL;
+static struct tx_desc tx_descriptors[TX_MAX_DESC];
 
+// Array de Packets
+static uint8_t tx_packets[TX_MAX_DESC][MAX_PACKET_SIZE];
+
+
+/*--------------------*/
+/* Funciones privadas */
+/*--------------------*/
+
+// Obtiene el valor del registro e1000_bar0[offset]
+static uint32_t
+e1000_getreg(uint32_t offset) {
+  return *(volatile uint32_t *) (e1000_bar0 + offset);
+}
+
+// Escribe el valor en el registro e1000_bar0[offset]
+static void
+e1000_setreg(uint32_t offset, uint32_t value)
+{
+  *(volatile uint32_t *) (e1000_bar0 + offset) = value;
+}
+
+// Inicializa los transmit descriptors
+void
+tx_descriptors_init(void) {
+	size_t i;
+	for (i = 0; i < TX_MAX_DESC; i ++) {
+		tx_descriptors[i].buffer_addr = PADDR(&tx_packets[i]);
+		tx_descriptors[i].status |= E1000_TXD_STAT_DD;
+	}
+}
+
+// Inicializa los registros BAR
+void
+tx_registers_init(void) {
+	// Inicializo los registros Transmit Descriptor Base Address (TDBAL y TDBAH)
+	uint64_t array_addr = PADDR(&tx_descriptors);
+	uint32_t lower_bits = array_addr;
+	uint32_t higher_bits = (array_addr >> 32);
+	e1000_setreg(E1000_TDBAL, lower_bits);
+	e1000_setreg(E1000_TDBAH, higher_bits);
+
+	// Inicializo el registro Transmit Descriptor Length (TDLEN)
+	e1000_setreg(E1000_TDLEN, TX_MAX_DESC * sizeof(struct tx_desc));
+
+	// Inicializo los registros Transmit Descriptor Head y Tail (TDH y TDT)
+	e1000_setreg(E1000_TDH, 0);
+	e1000_setreg(E1000_TDT, 0);
+
+	// Inicializo el registro Transmit Control (TCTL)
+	e1000_setreg(E1000_TCTL, 0);
+
+	// Seteo el Enable Bit (TCTL_EN) y el Pad Short Packets Bit (TCTL_PSP) en 1
+	e1000_bar0[E1000_TCTL] |= (E1000_TCTL_EN | E1000_TCTL_PSP);
+
+	// Seteo el Collision Threshold (TCTL.CT) en 0x10 (hexa) = 16 (decimal)
+	e1000_bar0[E1000_TCTL] |= (16 << E1000_TCTL_CT);
+
+	// Seteo el Collision Distance (TCTL.COLD) en 0x40 (hexa) = 64 (decimal)
+	e1000_bar0[E1000_TCTL] |= (64 << E1000_TCTL_COLD);
+
+	// Inicializo el registro Transmit Inter Packet Gap (TIPG)
+	e1000_setreg(E1000_TIPG, 0);
+	// - IPGT (bits 0 a 9) = 10 (decimal)
+	e1000_bar0[E1000_TIPG] |= 10;
+	// - IPGR1 (bits 10 a 19) = 8 (decimal)
+	e1000_bar0[E1000_TIPG] |= (8 << 10);
+	// - IPGR2 (bits 20 a 29) = 6 (decimal)
+	e1000_bar0[E1000_TIPG] |= (6 << 20);
+	// - Reserved (bits 30 a 31) = 0
+}
+
+// Inicializa la cola de transmision
+void
+e1000_init_transmit_queue(void) {
+	// Inicializo cada transmit descriptor con el array tx_packets
+	tx_descriptors_init();
+
+	// Inicializo los registros
+	tx_registers_init();
+}
+
+
+/*--------------------*/
+/* Funciones publicas */
+/*--------------------*/
 
 // Inicializa el E1000
 int
@@ -23,47 +108,16 @@ e1000_attach(struct pci_func *pcif) {
 	e1000_bar0 = mmio_map_region(reg_base0, reg_size0);
 
 	// Compruebo que el status es el correcto (0x80080783)
+	/*
 	uint32_t status = e1000_getreg(E1000_STATUS);
 	cprintf("0x%x\n", status);
+	*/
 
-	// Inicializo la transmit queue
+	// Inicializo la cola de transmision
 	e1000_init_transmit_queue();
 
-
-	// Inicializo la receive queue
+	// Inicializo la cola de recepcion
 	//e1000_init_receive_queue();
 
 	return 0;
-}
-
-void
-e1000_init_transmit_queue(void) {
-	// 1) 	Alocar una porción de memoria para el array de transmit descriptors y
-	// 		para los buffers packets apuntados por los descriptors.
-	// 		Dos alternativas:
-	//			a) Alocar paginas dinamicamente
-	//			b) Declarar variables globales
-	//		Importante:
-	//			- Los buffers deben ser contiguos en memoria fisica
-	//			- Alinear la memoria a 16 bytes
-	//			- El array consta de un multiplo de 8 descriptors
-	//			- El array tiene como maximo 64 descriptors
-	//			- Cargar address y length de los transmit descriptors
-
-	for (i = NTXDESC; i > 0; i--) {
-		// Armo la lista enlazada de envs libres de modo tal que
-		// en la primera llamada a env_init --> env_free_list = envs[0]
-		//envs[i - 1].env_status = ENV_FREE;
-		//envs[i - 1].env_id = 0;
-		//envs[i - 1].env_link = env_free_list;
-		//env_free_list = &envs[i - 1];
-	}
-}
-
-
-// Obtiene el valor del registro e1000_bar0[offset]
-// con aritmetica de punteros
-static uint32_t
-e1000_getreg(uint32_t offset) {
-  return *(volatile uint32_t *) (e1000_bar0 + offset);
 }
