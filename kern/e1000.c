@@ -62,22 +62,22 @@ tx_registers_init(void) {
 	e1000_setreg(E1000_TCTL, 0);
 
 	// Seteo el Enable Bit (TCTL_EN) y el Pad Short Packets Bit (TCTL_PSP) en 1
-	e1000_bar0[E1000_TCTL] |= (E1000_TCTL_EN | E1000_TCTL_PSP);
+	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | E1000_TCTL_EN | E1000_TCTL_PSP);
 
 	// Seteo el Collision Threshold (TCTL.CT) en 0x10 (hexa) = 16 (decimal)
-	e1000_bar0[E1000_TCTL] |= (16 << E1000_TCTL_CT);
+	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | (16 << E1000_TCTL_CT));
 
 	// Seteo el Collision Distance (TCTL.COLD) en 0x40 (hexa) = 64 (decimal)
-	e1000_bar0[E1000_TCTL] |= (64 << E1000_TCTL_COLD);
+	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | (64 << E1000_TCTL_COLD));
 
 	// Inicializo el registro Transmit Inter Packet Gap (TIPG)
 	e1000_setreg(E1000_TIPG, 0);
 	// - IPGT (bits 0 a 9) = 10 (decimal)
-	e1000_bar0[E1000_TIPG] |= 10;
+	e1000_setreg(E1000_TIPG, e1000_bar0[E1000_TIPG] | 10);
 	// - IPGR1 (bits 10 a 19) = 8 (decimal)
-	e1000_bar0[E1000_TIPG] |= (8 << 10);
+	e1000_setreg(E1000_TIPG, e1000_bar0[E1000_TIPG] | (8 << 10));
 	// - IPGR2 (bits 20 a 29) = 6 (decimal)
-	e1000_bar0[E1000_TIPG] |= (6 << 20);
+	e1000_setreg(E1000_TIPG, e1000_bar0[E1000_TIPG] | (6 << 20));
 	// - Reserved (bits 30 a 31) = 0
 }
 
@@ -91,6 +91,21 @@ e1000_init_transmit_queue(void) {
 	tx_registers_init();
 }
 
+
+// Transmite un paquete
+int
+e1000_transmit_packet(void *data, size_t len) {
+	// Copio la data en el buffer TDT del array
+	//memcpy(tx_descriptors[E1000_TDT].buffer_addr, data, len);
+
+	// Actualizo el registro TDT
+	//e1000_setreg(E1000_TDT, e1000_bar0[E1000_TDT] + 1);
+	
+	// TODO: ver que pasa si esta full
+	// TODO: ver el caso borde con el RS bit y el DD bit
+
+	return 0;
+}
 
 /*--------------------*/
 /* Funciones publicas */
