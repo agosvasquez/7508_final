@@ -65,7 +65,8 @@ tx_registers_init(void) {
 	e1000_setreg(E1000_TCTL, 0);
 
 	// Seteo el Enable Bit (TCTL_EN) y el Pad Short Packets Bit (TCTL_PSP) en 1
-	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | E1000_TCTL_EN | E1000_TCTL_PSP);
+	int tctl_flags = E1000_TCTL_EN | E1000_TCTL_PSP;
+	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | tctl_flags);
 
 	// Seteo el Collision Threshold (TCTL.CT) en 0x10 (hexa) = 16 (decimal)
 	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | (16 << E1000_TCTL_CT));
@@ -153,6 +154,9 @@ e1000_attach(struct pci_func *pcif) {
 
 	// Compruebo que el paquete se transmite correctamente
 	e1000_transmit_packet("Hola", 4);
+	e1000_transmit_packet("Mundo", 5);
+	e1000_transmit_packet("Como", 4);
+	e1000_transmit_packet("Estan?", 6);
 
 	// Inicializo la cola de recepcion
 	//e1000_init_receive_queue();
