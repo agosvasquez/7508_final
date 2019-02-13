@@ -22,6 +22,7 @@
 /* Transmit Descriptor bit definitions */
 /* (e1000_hw.h) */
 #define E1000_TXD_CMD_DEXT	0x20000000	/* Descriptor extension (0 = legacy) */
+#define E1000_TXD_CMD_RS     0x08000000 /* Report Status */
 #define E1000_TXD_STAT_DD   0x00000001 	/* Descriptor Done */
 
 /* Transmit Control */
@@ -35,7 +36,7 @@
 
 /* Variables globales */
 #define TX_MAX_DESC			56			/* Cantidad maxima de transmit descriptors en el tx_ring */
-#define MAX_PACKET_SIZE		1518		/* Tamaño maximo en bytes un Ethernet packet */
+#define MAX_PACKET_SIZE		1518		/* Tamaño maximo en bytes un Ethernet packet */     
 
 
 /*-------------*/

@@ -1,8 +1,11 @@
+// LAB 6: Your driver code here
+
+#include <inc/error.h>
+#include <inc/string.h>
+
 #include <kern/e1000.h>
 #include <kern/pci.h>
 #include <kern/pmap.h>
-
-// LAB 6: Your driver code here
 
 // VA del BAR 0
 volatile uint8_t *e1000_bar0;
@@ -94,17 +97,34 @@ e1000_init_transmit_queue(void) {
 
 // Transmite un paquete
 int
-e1000_transmit_packet(void *data, size_t len) {
-	// Copio la data en el buffer TDT del array
-	//memcpy(tx_descriptors[E1000_TDT].buffer_addr, data, len);
+e1000_transmit_packet(const void *buffer, size_t len) {
 
-	// Actualizo el registro TDT
-	//e1000_setreg(E1000_TDT, e1000_bar0[E1000_TDT] + 1);
-	
-	// TODO: ver que pasa si esta full
-	// TODO: ver el caso borde con el RS bit y el DD bit
+	int r = 0;
 
-	return 0;
+	// Obtengo el indice en la queue dado por el tail register
+	uint32_t idx = e1000_getreg(E1000_TDT);
+
+	// Si el DD Bit esta en 1, puedo reciclar el descriptor y usarlo para transmitir el paquete
+	bool is_dd_set = (tx_descriptors[idx].status & E1000_TXD_STAT_DD);
+
+	if (is_dd_set){
+		// Seteo el RS Bit del Command Field
+		tx_descriptors[idx].cmd |= E1000_TXD_CMD_RS;
+		
+		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
+		// Esto equivale a copiar el paquete en el siguiente buffer
+		memcpy(KADDR(tx_descriptors[idx].buffer_addr), buffer, len);
+		
+		// Actualizo el registro TDT
+		idx = (idx + 1) % TX_MAX_DESC;
+  		e1000_setreg(E1000_TDT, idx);
+	} else {
+		// Devuelvo un codigo de error para que el caller de esta funcion
+		// sepa que el paquete no se pudo enviar
+		r = -E_FULL_TX_QUEUE;
+	}
+
+	return r;
 }
 
 /*--------------------*/
@@ -130,6 +150,9 @@ e1000_attach(struct pci_func *pcif) {
 
 	// Inicializo la cola de transmision
 	e1000_init_transmit_queue();
+
+	// Compruebo que el paquete se transmite correctamente
+	e1000_transmit_packet("Hola", 4);
 
 	// Inicializo la cola de recepcion
 	//e1000_init_receive_queue();
