@@ -109,12 +109,17 @@ e1000_send_packet(const void *buf, size_t len) {
 	bool is_dd_set = (tx_descriptors[idx].status & E1000_TXD_STAT_DD);
 
 	if (is_dd_set){
-		// Seteo el RS Bit del Command Field
-		tx_descriptors[idx].cmd |= E1000_TXD_CMD_RS;
+		// Seteo el RS y el EOP bit del Command Field en 1
+		int cmd_flags = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP
+		tx_descriptors[idx].cmd |= cmd_flags;
+		
+		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
+		tx_descriptors[idx].status &= ~(1 << E1000_TXD_STAT_DD);
 		
 		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
 		// Esto equivale a copiar el paquete en el siguiente buffer
-		memcpy(KADDR(tx_descriptors[idx].buffer_addr), buf, len);
+		//memcpy(KADDR(tx_descriptors[idx].buffer_addr), buf, len);
+		memcpy(tx_packets[idx], buf, len);
 		
 		// Actualizo el registro TDT
 		idx = (idx + 1) % TX_MAX_DESC;
