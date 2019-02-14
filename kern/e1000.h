@@ -21,8 +21,9 @@
 
 /* Transmit Descriptor bit definitions */
 /* (e1000_hw.h) */
-#define E1000_TXD_CMD_DEXT	0x20000000	/* Descriptor extension (0 = legacy) */
+#define E1000_TXD_CMD_EOP    0x01000000 /* End of Packet */
 #define E1000_TXD_CMD_RS     0x08000000 /* Report Status */
+#define E1000_TXD_CMD_DEXT	0x20000000	/* Descriptor extension (0 = legacy) */
 #define E1000_TXD_STAT_DD   0x00000001 	/* Descriptor Done */
 
 /* Transmit Control */
