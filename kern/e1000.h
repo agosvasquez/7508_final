@@ -72,5 +72,7 @@ struct rx_desc {
 /*-----------*/
 
 int e1000_attach(struct pci_func *pcif);
+int e1000_send_packet(const void *buffer, size_t len);
+int e1000_receive_packet(void *buffer, size_t bufsize);
 
 #endif  // JOS_KERN_E1000_H

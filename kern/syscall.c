@@ -12,6 +12,7 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/time.h>
+#include <kern/e1000.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -484,13 +485,20 @@ sys_time_msec(void)
 // Transmite un paquete
 static int
 sys_network_send(const void *buf, size_t len) {
-	return 0;
+	// Chequeo que el puntero recibido esta en un espacio de memoria permitido
+	user_mem_assert(curenv, buf, len, PTE_U);
+
+	// Intento enviar un paquete
+	return e1000_send_packet(buf, len);
 }
 
 // Recibe un paquete
 static int
 sys_network_recv(void *buf, size_t bufsize) {
-	return 0;
+	// ...
+
+	// Intento recibir un paquete
+	return e1000_send_packet(buf, bufsize);
 }
 
 // Dispatches to the correct kernel function, passing the arguments.

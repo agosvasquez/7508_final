@@ -98,7 +98,7 @@ e1000_init_transmit_queue(void) {
 
 // Transmite un paquete
 int
-e1000_transmit_packet(const void *buffer, size_t len) {
+e1000_send_packet(const void *buf, size_t len) {
 
 	int r = 0;
 
@@ -114,7 +114,7 @@ e1000_transmit_packet(const void *buffer, size_t len) {
 		
 		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
 		// Esto equivale a copiar el paquete en el siguiente buffer
-		memcpy(KADDR(tx_descriptors[idx].buffer_addr), buffer, len);
+		memcpy(KADDR(tx_descriptors[idx].buffer_addr), buf, len);
 		
 		// Actualizo el registro TDT
 		idx = (idx + 1) % TX_MAX_DESC;
@@ -126,6 +126,14 @@ e1000_transmit_packet(const void *buffer, size_t len) {
 	}
 
 	return r;
+}
+
+// Recibe un paquete
+int
+e1000_receive_packet(void *buffer, size_t bufsize) {
+	// ...
+
+	return 0;
 }
 
 /*--------------------*/
@@ -153,10 +161,10 @@ e1000_attach(struct pci_func *pcif) {
 	e1000_init_transmit_queue();
 
 	// Compruebo que el paquete se transmite correctamente
-	e1000_transmit_packet("Hola", 4);
-	e1000_transmit_packet("Mundo", 5);
-	e1000_transmit_packet("Como", 4);
-	e1000_transmit_packet("Estan?", 6);
+	e1000_send_packet("Hola", 4);
+	e1000_send_packet("Mundo", 5);
+	e1000_send_packet("Como", 4);
+	e1000_send_packet("Estan?", 6);
 
 	// Inicializo la cola de recepcion
 	//e1000_init_receive_queue();
