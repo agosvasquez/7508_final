@@ -14,7 +14,7 @@ volatile uint8_t *e1000_bar0;
 static struct tx_desc tx_descriptors[TX_MAX_DESC];
 
 // Array de Packets
-static uint8_t tx_packets[TX_MAX_DESC][MAX_PACKET_SIZE];
+static uint8_t tx_buffers[TX_MAX_DESC][MAX_PACKET_SIZE];
 
 
 /*--------------------*/
@@ -39,7 +39,7 @@ void
 tx_descriptors_init(void) {
 	size_t i;
 	for (i = 0; i < TX_MAX_DESC; i ++) {
-		tx_descriptors[i].buffer_addr = PADDR(&tx_packets[i]);
+		tx_descriptors[i].buffer_addr = PADDR(&tx_buffers[i]);
 		tx_descriptors[i].status |= E1000_TXD_STAT_DD;
 	}
 }
@@ -48,47 +48,33 @@ tx_descriptors_init(void) {
 void
 tx_registers_init(void) {
 	// Inicializo los registros Transmit Descriptor Base Address (TDBAL y TDBAH)
-	uint64_t array_addr = PADDR(&tx_descriptors);
+	uint64_t array_addr = PADDR(tx_descriptors);
 	uint32_t lower_bits = array_addr;
 	uint32_t higher_bits = (array_addr >> 32);
 	e1000_setreg(E1000_TDBAL, lower_bits);
-	e1000_setreg(E1000_TDBAH, higher_bits);
+	//e1000_setreg(E1000_TDBAH, higher_bits);
+	e1000_setreg(E1000_TDBAH, 0);
 
 	// Inicializo el registro Transmit Descriptor Length (TDLEN)
-	e1000_setreg(E1000_TDLEN, TX_MAX_DESC * sizeof(struct tx_desc));
+	e1000_setreg(E1000_TDLEN, sizeof(tx_descriptors));
 
 	// Inicializo los registros Transmit Descriptor Head y Tail (TDH y TDT)
 	e1000_setreg(E1000_TDH, 0);
 	e1000_setreg(E1000_TDT, 0);
 
 	// Inicializo el registro Transmit Control (TCTL)
-	e1000_setreg(E1000_TCTL, 0);
-
-	// Seteo el Enable Bit (TCTL_EN) y el Pad Short Packets Bit (TCTL_PSP) en 1
-	int tctl_flags = E1000_TCTL_EN | E1000_TCTL_PSP;
-	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | tctl_flags);
-
-	// Seteo el Collision Threshold (TCTL.CT) en 0x10 (hexa) = 16 (decimal)
-	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | (16 << E1000_TCTL_CT));
-
-	// Seteo el Collision Distance (TCTL.COLD) en 0x40 (hexa) = 64 (decimal)
-	e1000_setreg(E1000_TCTL, e1000_bar0[E1000_TCTL] | (64 << E1000_TCTL_COLD));
+	uint32_t tctl_flags = E1000_TCTL_EN | E1000_TCTL_PSP | E1000_TCTL_CT | E1000_TCTL_COLD;
+	e1000_setreg(E1000_TCTL, tctl_flags);
 
 	// Inicializo el registro Transmit Inter Packet Gap (TIPG)
-	e1000_setreg(E1000_TIPG, 0);
-	// - IPGT (bits 0 a 9) = 10 (decimal)
-	e1000_setreg(E1000_TIPG, e1000_bar0[E1000_TIPG] | 10);
-	// - IPGR1 (bits 10 a 19) = 8 (decimal)
-	e1000_setreg(E1000_TIPG, e1000_bar0[E1000_TIPG] | (8 << 10));
-	// - IPGR2 (bits 20 a 29) = 6 (decimal)
-	e1000_setreg(E1000_TIPG, e1000_bar0[E1000_TIPG] | (6 << 20));
-	// - Reserved (bits 30 a 31) = 0
+	uint32_t tipg_flags = E1000_TIPG_IPGT | E1000_TIPG_IPGR1 | E1000_TIPG_IPGR2;
+	e1000_setreg(E1000_TIPG, tipg_flags);
 }
 
 // Inicializa la cola de transmision
 void
 e1000_init_transmit_queue(void) {
-	// Inicializo cada transmit descriptor con el array tx_packets
+	// Inicializo cada transmit descriptor con el array tx_buffers
 	tx_descriptors_init();
 
 	// Inicializo los registros
@@ -110,7 +96,7 @@ e1000_send_packet(const void *buf, size_t len) {
 
 	if (is_dd_set){
 		// Seteo el RS y el EOP bit del Command Field en 1
-		int cmd_flags = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP
+		uint32_t cmd_flags = (E1000_TXD_CMD_RS >> 24) | (E1000_TXD_CMD_EOP >> 24);
 		tx_descriptors[idx].cmd |= cmd_flags;
 		
 		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
@@ -118,8 +104,7 @@ e1000_send_packet(const void *buf, size_t len) {
 		
 		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
 		// Esto equivale a copiar el paquete en el siguiente buffer
-		//memcpy(KADDR(tx_descriptors[idx].buffer_addr), buf, len);
-		memcpy(tx_packets[idx], buf, len);
+		memcpy(tx_buffers[idx], buf, len);
 		
 		// Actualizo el registro TDT
 		idx = (idx + 1) % TX_MAX_DESC;

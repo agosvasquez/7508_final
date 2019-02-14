@@ -21,19 +21,23 @@
 
 /* Transmit Descriptor bit definitions */
 /* (e1000_hw.h) */
-#define E1000_TXD_CMD_EOP    0x01000000 /* End of Packet */
-#define E1000_TXD_CMD_RS     0x08000000 /* Report Status */
-#define E1000_TXD_CMD_DEXT	0x20000000	/* Descriptor extension (0 = legacy) */
+#define E1000_TXD_CMD_EOP   0x01000000  /* End of Packet */
+#define E1000_TXD_CMD_RS    0x08000000  /* Report Status */
 #define E1000_TXD_STAT_DD   0x00000001 	/* Descriptor Done */
 
-/* Transmit Control */
+/* Transmit Control (TCTL) */
 /* (e1000_hw.h) */
-#define E1000_TCTL_RST    	0x00000001	/* software reset */
 #define E1000_TCTL_EN     	0x00000002	/* enable tx */
 #define E1000_TCTL_PSP    	0x00000008	/* pad short packets */
-/* (Seccion 13.4.33 - Pag. 311) */
-#define E1000_TCTL_CT     	4    		/* collision threshold */
-#define E1000_TCTL_COLD   	12    		/* collision distance */
+/* (Seccion 14.5 - Pag. 378) */
+#define E1000_TCTL_CT     	0x00000010	/* collision threshold (10h) */
+#define E1000_TCTL_COLD   	0x00000040  /* collision distance (40h) */
+
+/* Transmit Inter Packet Gap (TIPG) */
+/* (Seccion 14.3.34 - Pag. 313) */
+#define E1000_TIPG_IPGT     10
+#define E1000_TIPG_IPGR1    4
+#define E1000_TIPG_IPGR2    6
 
 /* Variables globales */
 #define TX_MAX_DESC			56			/* Cantidad maxima de transmit descriptors en el tx_ring */
