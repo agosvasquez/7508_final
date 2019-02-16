@@ -81,6 +81,7 @@
 #define MAX_PACKET_SIZE		1518		/* Tamaño maximo en bytes un Ethernet packet */     
 #define RECEIVE_BUF_SIZE    2048        /* Viene dado por E1000_RCTL_SZ_2048 */
 
+
 /*-------------*/
 /* Estructuras */
 /*-------------*/

@@ -246,12 +246,12 @@ e1000_attach(struct pci_func *pcif) {
 	*/
 
 	// Compruebo que el paquete se recibe correctamente
-	
+	/*
 	e1000_receive_packet("Hola", 4);
 	e1000_receive_packet("Mundo", 5);
 	e1000_receive_packet("Como", 4);
 	e1000_receive_packet("Estan?", 6);
-	
+	*/
 
 	// Inicializo la cola de recepcion
 	//e1000_init_receive_queue();
