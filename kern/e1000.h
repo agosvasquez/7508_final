@@ -37,6 +37,8 @@
 /* (Tabla 13.2 - Pag. 220) */
 #define E1000_RAL0          0x05400     /* Receive Address Register Low 0 */
 #define E1000_RAH0          0x05404     /* Receive Address Register High 0 */
+/* (Tabla 13.91 - Pag. 330) */
+#define E1000_ADDR_VALID    0x80000000  /* Address Valid (bit 31) para RAH */ 
 
 /* Transmit Descriptor bit definitions */
 /* (e1000_hw.h) */
@@ -60,6 +62,8 @@
 /* Receive Control (RCTL) */
 /* (e1000_hw.h) */
 #define E1000_RCTL_EN             0x00000002    /* enable */
+#define E1000_RCTL_LPE_NO         0x00000000    /* long packet disabled */
+#define E1000_RCTL_LBM_NO         0x00000000    /* no loopback mode */
 #define E1000_RCTL_RDMTS_EIGTH    0x00000200    /* rx desc min threshold size */
 #define E1000_RCTL_BAM            0x00008000    /* broadcast enable */
 #define E1000_RCTL_SZ_2048        0x00000000    /* rx buffer size 2048 */

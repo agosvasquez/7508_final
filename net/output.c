@@ -10,7 +10,7 @@ output(envid_t ns_envid)
 	// LAB 6: Your code here:
 	// 	- read a packet from the network server
 	//	- send the packet to the device driver
-	
+	/*
 	int r;
 	
 	// Loop
@@ -32,11 +32,12 @@ output(envid_t ns_envid)
 		// ...
 
 		// Envio el packet al device driver
-		r = sys_network_send(...);
+		r = sys_network_send(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len);
 		
 		// Contemplar el caso que la transmit queue este llena
 		if (r < 0) {
 			// ...
 		}
 	}
+	*/
 }

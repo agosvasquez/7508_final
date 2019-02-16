@@ -67,10 +67,7 @@ void
 tx_registers_init(void) {
 	// Inicializo los registros Transmit Descriptor Base Address (TDBAL y TDBAH)
 	uint64_t array_addr = PADDR(tx_descriptors);
-	uint32_t lower_bits = array_addr;
-	uint32_t higher_bits = (array_addr >> 32);
-	e1000_setreg(E1000_TDBAL, lower_bits);
-	//e1000_setreg(E1000_TDBAH, higher_bits);
+	e1000_setreg(E1000_TDBAL, array_addr);
 	e1000_setreg(E1000_TDBAH, 0);
 
 	// Inicializo el registro Transmit Descriptor Length (TDLEN)
@@ -95,14 +92,11 @@ rx_registers_init(void) {
 	// Inicializo los registros Receive Address (RAL y RAH) apuntando a la MAC_ADDRESS
 	// TODO: ver como representar la MAC_ADDRESS en el .h
 	//e1000_setreg(E1000_RAL0, ...);
-	//e1000_setreg(E1000_RAH0, ...);
+	//e1000_setreg(E1000_RAH0, | E1000_ADDR_VALID);
 
 	// Inicializo los registros Receive Descriptor Base Address (RDBAL y RDBAH)
 	uint64_t array_addr = PADDR(rx_descriptors);
-	uint32_t lower_bits = array_addr;
-	uint32_t higher_bits = (array_addr >> 32);
-	e1000_setreg(E1000_RDBAL, lower_bits);
-	//e1000_setreg(E1000_TDBAH, higher_bits);
+	e1000_setreg(E1000_RDBAL, array_addr);
 	e1000_setreg(E1000_RDBAH, 0);
 
 	// Inicializo el registro Receive Descriptor Length (RDLEN)
@@ -115,10 +109,10 @@ rx_registers_init(void) {
 
 	// Inicializo el registro Receive Control (RCTL)
 	// TODO: ver si E1000_RCTL_EN va en 0 o en 1
-	// TODO: ver de donde sale el bit loopback mode (LBM)
-	// TODO: ver cual es el valor deseado de RDMTS (puse eight)
-	uint32_t rctl_flags = 	E1000_RCTL_EN | E1000_RCTL_RDMTS_EIGTH | E1000_RCTL_BAM |
-							E1000_RCTL_SZ_2048 | E1000_RCTL_SECRC;
+	// TODO: ver cual es el valor deseado de RDMTS (puse EIGTH)
+	uint32_t rctl_flags = 	E1000_RCTL_EN | E1000_RCTL_LPE_NO | E1000_RCTL_LBM_NO |
+							E1000_RCTL_RDMTS_EIGTH | E1000_RCTL_BAM | E1000_RCTL_SZ_2048 |
+							E1000_RCTL_SECRC;
 	e1000_setreg(E1000_RCTL, rctl_flags);
 }
 
