@@ -150,11 +150,15 @@ e1000_send_packet(const void *buf, size_t len) {
 
 	if (is_dd_set){
 		// Seteo el RS y el EOP bit del Command Field en 1
+		// Los desplazo 24 bits ya que ahi empieza el command field del descriptor
 		uint32_t cmd_flags = (E1000_TXD_CMD_RS >> 24) | (E1000_TXD_CMD_EOP >> 24);
 		tx_descriptors[idx].cmd |= cmd_flags;
 		
 		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
-		tx_descriptors[idx].status &= ~(1 << E1000_TXD_STAT_DD);
+		tx_descriptors[idx].status &= ~E1000_TXD_STAT_DD;
+
+		// Seteo la longitud del paquete
+		tx_descriptors[idx].length = len;
 		
 		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
 		// Esto equivale a copiar el paquete en el siguiente buffer
@@ -175,7 +179,36 @@ e1000_send_packet(const void *buf, size_t len) {
 // Recibe un paquete
 int
 e1000_receive_packet(void *buffer, size_t bufsize) {
-	// ...
+	int r = 0;
+
+	// Obtengo el indice en la queue dado por el tail register
+	uint32_t idx = e1000_getreg(E1000_RDT);
+
+	// Si el DD Bit esta en 1, puedo reciclar el descriptor y usarlo para recibir el paquete
+	bool is_dd_set = (rx_descriptors[idx].status & E1000_RXD_STAT_DD);
+	/*
+	if (is_dd_set){
+		// Seteo el RS y el EOP bit del Command Field en 1
+		uint32_t cmd_flags = (E1000_TXD_CMD_RS >> 24) | (E1000_TXD_CMD_EOP >> 24);
+		tx_descriptors[idx].cmd |= cmd_flags;
+		
+		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
+		tx_descriptors[idx].status &= ~(1 << E1000_TXD_STAT_DD);
+		
+		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
+		// Esto equivale a copiar el paquete en el siguiente buffer
+		memcpy(tx_buffers[idx], buf, len);
+		
+		// Actualizo el registro TDT
+		idx = (idx + 1) % TX_MAX_DESC;
+  		e1000_setreg(E1000_TDT, idx);
+	} else {
+		// Devuelvo un codigo de error para que el caller de esta funcion
+		// sepa que el paquete no se pudo enviar
+		r = -E_FULL_TX_QUEUE;
+	}
+	*/
+	return r;
 
 	return 0;
 }
@@ -205,10 +238,12 @@ e1000_attach(struct pci_func *pcif) {
 	e1000_init_transmit_queue();
 
 	// Compruebo que el paquete se transmite correctamente
+	/*
 	e1000_send_packet("Hola", 4);
 	e1000_send_packet("Mundo", 5);
 	e1000_send_packet("Como", 4);
 	e1000_send_packet("Estan?", 6);
+	*/
 
 	// Inicializo la cola de recepcion
 	//e1000_init_receive_queue();
