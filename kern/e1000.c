@@ -148,7 +148,7 @@ e1000_send_packet(const void *buf, size_t len) {
 	// Si el DD Bit esta en 1, puedo reciclar el descriptor y usarlo para transmitir el paquete
 	bool is_dd_set = (tx_descriptors[idx].status & E1000_TXD_STAT_DD);
 
-	if (is_dd_set){
+	if (is_dd_set) {
 		// Seteo el RS y el EOP bit del Command Field en 1
 		// Los desplazo 24 bits ya que ahi empieza el command field del descriptor
 		uint32_t cmd_flags = (E1000_TXD_CMD_RS >> 24) | (E1000_TXD_CMD_EOP >> 24);
@@ -178,7 +178,8 @@ e1000_send_packet(const void *buf, size_t len) {
 
 // Recibe un paquete
 int
-e1000_receive_packet(void *buffer, size_t bufsize) {
+e1000_receive_packet(void *buf, size_t bufsize) {
+	
 	int r = 0;
 
 	// Obtengo el indice en la queue dado por el tail register
@@ -186,31 +187,30 @@ e1000_receive_packet(void *buffer, size_t bufsize) {
 
 	// Si el DD Bit esta en 1, puedo reciclar el descriptor y usarlo para recibir el paquete
 	bool is_dd_set = (rx_descriptors[idx].status & E1000_RXD_STAT_DD);
-	/*
-	if (is_dd_set){
-		// Seteo el RS y el EOP bit del Command Field en 1
-		uint32_t cmd_flags = (E1000_TXD_CMD_RS >> 24) | (E1000_TXD_CMD_EOP >> 24);
-		tx_descriptors[idx].cmd |= cmd_flags;
+	
+	if (is_dd_set) {
+		// Seteo el EOP y el DD bit del Status en 1
+		// TODO: ver si el DD bit va en 0 o en 1
+		uint32_t status_flags = E1000_RXD_STAT_EOP | E1000_RXD_STAT_DD;
+		rx_descriptors[idx].status |= status_flags;
+
+		// Seteo la longitud del paquete
+		rx_descriptors[idx].length = bufsize;
 		
-		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
-		tx_descriptors[idx].status &= ~(1 << E1000_TXD_STAT_DD);
-		
-		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
+		// Para recibir un paquete, lo agrego al tail (TDT) de la cola de recepcion
 		// Esto equivale a copiar el paquete en el siguiente buffer
-		memcpy(tx_buffers[idx], buf, len);
+		memcpy(rx_buffers[idx], buf, bufsize);
 		
-		// Actualizo el registro TDT
-		idx = (idx + 1) % TX_MAX_DESC;
-  		e1000_setreg(E1000_TDT, idx);
+		// Actualizo el registro RDT
+		idx = (idx + 1) % RX_MAX_DESC;
+  		e1000_setreg(E1000_RDT, idx);
 	} else {
 		// Devuelvo un codigo de error para que el caller de esta funcion
-		// sepa que el paquete no se pudo enviar
-		r = -E_FULL_TX_QUEUE;
+		// sepa que no se recibio ningun paquete
+		r = -E_EMPTY_RX_QUEUE;
 	}
-	*/
+	
 	return r;
-
-	return 0;
 }
 
 /*--------------------*/
@@ -244,6 +244,14 @@ e1000_attach(struct pci_func *pcif) {
 	e1000_send_packet("Como", 4);
 	e1000_send_packet("Estan?", 6);
 	*/
+
+	// Compruebo que el paquete se recibe correctamente
+	
+	e1000_receive_packet("Hola", 4);
+	e1000_receive_packet("Mundo", 5);
+	e1000_receive_packet("Como", 4);
+	e1000_receive_packet("Estan?", 6);
+	
 
 	// Inicializo la cola de recepcion
 	//e1000_init_receive_queue();
