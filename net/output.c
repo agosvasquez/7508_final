@@ -24,7 +24,15 @@ output(envid_t ns_envid)
 		
 		// Aceptar mensajes NSREQ_OUTPUT IPC del core network server
 		// Enviar packets acompañando dichos mensajes al network device driver
-		r = sys_send_packet(...);
+
+		// Acepto un packet del network server
+		// TODO: ver lib/nsipc.c
+		nsipcbuf.accept ...
+		struct jif_pkt packet = nsipcbuf.pkt;
+		// ...
+
+		// Envio el packet al device driver
+		r = sys_network_send(...);
 		
 		// Contemplar el caso que la transmit queue este llena
 		if (r < 0) {

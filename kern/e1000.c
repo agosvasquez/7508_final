@@ -13,8 +13,15 @@ volatile uint8_t *e1000_bar0;
 // Array de Transmit Descriptors
 static struct tx_desc tx_descriptors[TX_MAX_DESC];
 
-// Array de Packets
+// Array de Receive Descriptors
+static struct rx_desc rx_descriptors[RX_MAX_DESC];
+
+// Array de Transmit Packets Buffers
 static uint8_t tx_buffers[TX_MAX_DESC][MAX_PACKET_SIZE];
+
+// Array de Receive Packets Buffers
+// TODO: ver si es MAX_PACKET_SIZE (1518) o RECEIVE_BUF_SIZE (2048)
+static uint8_t rx_buffers[RX_MAX_DESC][RECEIVE_BUF_SIZE];
 
 
 /*--------------------*/
@@ -44,7 +51,18 @@ tx_descriptors_init(void) {
 	}
 }
 
-// Inicializa los registros BAR
+// Inicializa los receive descriptors
+void
+rx_descriptors_init(void) {
+	size_t i;
+	for (i = 0; i < RX_MAX_DESC; i ++) {
+		rx_descriptors[i].buffer_addr = PADDR(&rx_buffers[i]);
+		// TODO: ver si va esto del status
+		rx_descriptors[i].status |= E1000_RXD_STAT_DD;
+	}
+}
+
+// Inicializa los registros BAR del transmit array
 void
 tx_registers_init(void) {
 	// Inicializo los registros Transmit Descriptor Base Address (TDBAL y TDBAH)
@@ -71,6 +89,39 @@ tx_registers_init(void) {
 	e1000_setreg(E1000_TIPG, tipg_flags);
 }
 
+// Inicializa los registros BAR del receive array
+void
+rx_registers_init(void) {
+	// Inicializo los registros Receive Address (RAL y RAH) apuntando a la MAC_ADDRESS
+	// TODO: ver como representar la MAC_ADDRESS en el .h
+	//e1000_setreg(E1000_RAL0, ...);
+	//e1000_setreg(E1000_RAH0, ...);
+
+	// Inicializo los registros Receive Descriptor Base Address (RDBAL y RDBAH)
+	uint64_t array_addr = PADDR(rx_descriptors);
+	uint32_t lower_bits = array_addr;
+	uint32_t higher_bits = (array_addr >> 32);
+	e1000_setreg(E1000_RDBAL, lower_bits);
+	//e1000_setreg(E1000_TDBAH, higher_bits);
+	e1000_setreg(E1000_RDBAH, 0);
+
+	// Inicializo el registro Receive Descriptor Length (RDLEN)
+	e1000_setreg(E1000_RDLEN, sizeof(rx_descriptors));
+
+	// Inicializo los registros Receive Descriptor Head y Tail (RDH y RDT)
+	// TODO: ver con que se cargan RDH y RDT
+	//e1000_setreg(E1000_RDH, ...);
+	//e1000_setreg(E1000_RDT, ...);
+
+	// Inicializo el registro Receive Control (RCTL)
+	// TODO: ver si E1000_RCTL_EN va en 0 o en 1
+	// TODO: ver de donde sale el bit loopback mode (LBM)
+	// TODO: ver cual es el valor deseado de RDMTS (puse eight)
+	uint32_t rctl_flags = 	E1000_RCTL_EN | E1000_RCTL_RDMTS_EIGTH | E1000_RCTL_BAM |
+							E1000_RCTL_SZ_2048 | E1000_RCTL_SECRC;
+	e1000_setreg(E1000_RCTL, rctl_flags);
+}
+
 // Inicializa la cola de transmision
 void
 e1000_init_transmit_queue(void) {
@@ -81,6 +132,15 @@ e1000_init_transmit_queue(void) {
 	tx_registers_init();
 }
 
+// Inicializa la cola de recepcion
+void
+e1000_init_receive_queue(void) {
+	// Inicializo cada receive descriptor con el array rx_buffers
+	rx_descriptors_init();
+
+	// Inicializo los registros
+	rx_registers_init();	
+}
 
 // Transmite un paquete
 int
