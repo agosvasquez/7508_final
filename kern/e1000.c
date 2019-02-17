@@ -17,10 +17,9 @@ static struct tx_desc tx_descriptors[TX_MAX_DESC];
 static struct rx_desc rx_descriptors[RX_MAX_DESC];
 
 // Array de Transmit Packets Buffers
-static uint8_t tx_buffers[TX_MAX_DESC][MAX_PACKET_SIZE];
+static uint8_t tx_buffers[TX_MAX_DESC][TRANSMIT_BUF_SIZE];
 
 // Array de Receive Packets Buffers
-// TODO: ver si es MAX_PACKET_SIZE (1518) o RECEIVE_BUF_SIZE (2048)
 static uint8_t rx_buffers[RX_MAX_DESC][RECEIVE_BUF_SIZE];
 
 
@@ -57,8 +56,6 @@ rx_descriptors_init(void) {
 	size_t i;
 	for (i = 0; i < RX_MAX_DESC; i ++) {
 		rx_descriptors[i].buffer_addr = PADDR(&rx_buffers[i]);
-		// TODO: ver si va esto del status
-		rx_descriptors[i].status |= E1000_RXD_STAT_DD;
 	}
 }
 
@@ -90,9 +87,9 @@ tx_registers_init(void) {
 void
 rx_registers_init(void) {
 	// Inicializo los registros Receive Address (RAL y RAH) apuntando a la MAC_ADDRESS
-	// TODO: ver como representar la MAC_ADDRESS en el .h
-	//e1000_setreg(E1000_RAL0, ...);
-	//e1000_setreg(E1000_RAH0, | E1000_ADDR_VALID);
+	// TODO: ver si tengo que aplicar algun desplazamiento de bits aca
+	e1000_setreg(E1000_RAL0, MAC_ADDR_LOW);
+	e1000_setreg(E1000_RAH0, MAC_ADDR_HIGH | E1000_ADDR_VALID);
 
 	// Inicializo los registros Receive Descriptor Base Address (RDBAL y RDBAH)
 	uint64_t array_addr = PADDR(rx_descriptors);
@@ -103,16 +100,14 @@ rx_registers_init(void) {
 	e1000_setreg(E1000_RDLEN, sizeof(rx_descriptors));
 
 	// Inicializo los registros Receive Descriptor Head y Tail (RDH y RDT)
-	// TODO: ver con que se cargan RDH y RDT
-	//e1000_setreg(E1000_RDH, ...);
-	//e1000_setreg(E1000_RDT, ...);
+	// RDH apunta al primer descriptor valido (rx_descriptors[0])
+	e1000_setreg(E1000_RDH, PADDR(&rx_descriptors[0]));
+	// RDH apunta al ultimo descriptor valido + 1 (rx_descriptors[RX_MAX_DESC])
+	e1000_setreg(E1000_RDT, PADDR(&rx_descriptors[RX_MAX_DESC]));
 
 	// Inicializo el registro Receive Control (RCTL)
-	// TODO: ver si E1000_RCTL_EN va en 0 o en 1
-	// TODO: ver cual es el valor deseado de RDMTS (puse EIGTH)
 	uint32_t rctl_flags = 	E1000_RCTL_EN | E1000_RCTL_LPE_NO | E1000_RCTL_LBM_NO |
-							E1000_RCTL_RDMTS_EIGTH | E1000_RCTL_BAM | E1000_RCTL_SZ_2048 |
-							E1000_RCTL_SECRC;
+			 				E1000_RCTL_BAM | E1000_RCTL_SZ_2048 | E1000_RCTL_SECRC;
 	e1000_setreg(E1000_RCTL, rctl_flags);
 }
 
@@ -189,10 +184,11 @@ e1000_receive_packet(void *buf, size_t bufsize) {
 	bool is_dd_set = (rx_descriptors[idx].status & E1000_RXD_STAT_DD);
 	
 	if (is_dd_set) {
-		// Seteo el EOP y el DD bit del Status en 1
-		// TODO: ver si el DD bit va en 0 o en 1
-		uint32_t status_flags = E1000_RXD_STAT_EOP | E1000_RXD_STAT_DD;
-		rx_descriptors[idx].status |= status_flags;
+		// Seteo el EOP bit del Status en 1
+		rx_descriptors[idx].status |= E1000_RXD_STAT_EOP;
+
+		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
+		tx_descriptors[idx].status &= ~E1000_TXD_STAT_DD;
 
 		// Seteo la longitud del paquete
 		rx_descriptors[idx].length = bufsize;

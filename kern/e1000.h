@@ -9,8 +9,10 @@
 /*------------*/
 
 /* E1000 MAC Address */
+/* 52:54:00:12:34:56 */
 /* (Lab 6 - Ej. 10) */
-#define MAC_ADDRESS         52:54:00:12:34:56
+#define MAC_ADDR_LOW        0x00005634  /* High order 16 bits (34:56) */
+#define MAC_ADDR_HIGH       0x12005452  /* Low order 32 bits (52:54:00:12) */
 
 /* Device Status - RO */
 /* (e1000_hw.h) */
@@ -64,7 +66,6 @@
 #define E1000_RCTL_EN             0x00000002    /* enable */
 #define E1000_RCTL_LPE_NO         0x00000000    /* long packet disabled */
 #define E1000_RCTL_LBM_NO         0x00000000    /* no loopback mode */
-#define E1000_RCTL_RDMTS_EIGTH    0x00000200    /* rx desc min threshold size */
 #define E1000_RCTL_BAM            0x00008000    /* broadcast enable */
 #define E1000_RCTL_SZ_2048        0x00000000    /* rx buffer size 2048 */
 #define E1000_RCTL_SECRC          0x04000000    /* Strip Ethernet CRC */
@@ -78,7 +79,7 @@
 /* Variables globales */
 #define TX_MAX_DESC			56			/* Cantidad maxima de transmit descriptors en el tx_array */
 #define RX_MAX_DESC         128         /* Cantidad maxima de receive descriptors en el rx_array */
-#define MAX_PACKET_SIZE		1518		/* Tamaño maximo en bytes un Ethernet packet */     
+#define TRANSMIT_BUF_SIZE	1518		/* Tamaño maximo en bytes un Ethernet packet */     
 #define RECEIVE_BUF_SIZE    2048        /* Viene dado por E1000_RCTL_SZ_2048 */
 
 

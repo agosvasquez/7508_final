@@ -10,34 +10,21 @@ output(envid_t ns_envid)
 	// LAB 6: Your code here:
 	// 	- read a packet from the network server
 	//	- send the packet to the device driver
-	/*
-	int r;
 	
-	// Loop
-	while (...) {
-		// Los NSREQ_OUTPUT IPC's se envian con la funcion low_level_output()
-		// Definida en net/lwip/jos/jif/jif.c
-		// ...
-		
-		// Cada IPC incluye una pagina tipo union Nsipc con el packet en su struct jif_pkt 'pkt'
-		// ...
-		
-		// Aceptar mensajes NSREQ_OUTPUT IPC del core network server
-		// Enviar packets acompañando dichos mensajes al network device driver
+	int r, type, perm;
+	envid_t sender; 
+	
+	// Loop infinito
+	while (1) {
+		// Leo un paquete del network server
+		type = ipc_recv(&sender, NULL, &perm);
 
-		// Acepto un packet del network server
-		// TODO: ver lib/nsipc.c
-		nsipcbuf.accept ...
-		struct jif_pkt packet = nsipcbuf.pkt;
-		// ...
-
-		// Envio el packet al device driver
-		r = sys_network_send(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len);
-		
-		// Contemplar el caso que la transmit queue este llena
-		if (r < 0) {
-			// ...
+		// Compruebo que el request y el envid son los correctos
+		if (type == NSREQ_OUTPUT && sender == ns_envid) {
+			// Envio el paquete al driver
+			if ((r = sys_network_send(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len)) < 0) {
+				// TODO: ver como bloqueo aca
+			}
 		}
 	}
-	*/
 }
