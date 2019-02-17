@@ -16,8 +16,8 @@ output(envid_t ns_envid)
 	
 	// Loop infinito
 	while (1) {
-		// Leo un paquete del network server
-		type = ipc_recv(&sender, NULL, &perm);
+		// Leo un paquete del network server y lo guardo en nsipcbuf.pkt
+		type = ipc_recv(&sender, &nsipcbuf.pkt, &perm);
 
 		// Compruebo que el request y el envid son los correctos
 		if (type == NSREQ_OUTPUT && sender == ns_envid) {

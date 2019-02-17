@@ -88,6 +88,7 @@ void
 rx_registers_init(void) {
 	// Inicializo los registros Receive Address (RAL y RAH) apuntando a la MAC_ADDRESS
 	// TODO: ver si tengo que aplicar algun desplazamiento de bits aca
+	// TODO: ver si es correcto el E1000_ADDR_VALID
 	e1000_setreg(E1000_RAL0, MAC_ADDR_LOW);
 	e1000_setreg(E1000_RAH0, MAC_ADDR_HIGH | E1000_ADDR_VALID);
 
@@ -241,6 +242,9 @@ e1000_attach(struct pci_func *pcif) {
 	e1000_send_packet("Estan?", 6);
 	*/
 
+	// Inicializo la cola de recepcion
+	e1000_init_receive_queue();
+
 	// Compruebo que el paquete se recibe correctamente
 	/*
 	e1000_receive_packet("Hola", 4);
@@ -248,9 +252,6 @@ e1000_attach(struct pci_func *pcif) {
 	e1000_receive_packet("Como", 4);
 	e1000_receive_packet("Estan?", 6);
 	*/
-
-	// Inicializo la cola de recepcion
-	//e1000_init_receive_queue();
-
+	
 	return 0;
 }
