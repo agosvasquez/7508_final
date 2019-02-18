@@ -56,6 +56,7 @@ rx_descriptors_init(void) {
 	size_t i;
 	for (i = 0; i < RX_MAX_DESC; i ++) {
 		rx_descriptors[i].buffer_addr = PADDR(&rx_buffers[i]);
+		rx_descriptors[i].status |= E1000_RXD_STAT_DD;
 	}
 }
 
@@ -189,7 +190,7 @@ e1000_receive_packet(void *buf, size_t bufsize) {
 		rx_descriptors[idx].status |= E1000_RXD_STAT_EOP;
 
 		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
-		tx_descriptors[idx].status &= ~E1000_TXD_STAT_DD;
+		rx_descriptors[idx].status &= ~E1000_RXD_STAT_DD;
 
 		// Seteo la longitud del paquete
 		rx_descriptors[idx].length = bufsize;

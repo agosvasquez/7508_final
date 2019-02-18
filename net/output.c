@@ -23,7 +23,7 @@ output(envid_t ns_envid)
 		if (type == NSREQ_OUTPUT && sender == ns_envid) {
 			// Envio el paquete al driver
 			if ((r = sys_network_send(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len)) < 0) {
-				// TODO: ver como bloqueo aca
+				continue;
 			}
 		}
 	}

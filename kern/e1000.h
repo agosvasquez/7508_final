@@ -11,8 +11,8 @@
 /* E1000 MAC Address */
 /* 52:54:00:12:34:56 */
 /* (Lab 6 - Ej. 10) */
-#define MAC_ADDR_LOW        0x00005634  /* High order 16 bits (34:56) */
-#define MAC_ADDR_HIGH       0x12005452  /* Low order 32 bits (52:54:00:12) */
+#define MAC_ADDR_HIGH       0x00005634  /* High order 16 bits (34:56) */
+#define MAC_ADDR_LOW        0x12005452  /* Low order 32 bits (52:54:00:12) */
 
 /* Device Status - RO */
 /* (e1000_hw.h) */

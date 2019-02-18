@@ -15,7 +15,7 @@ input(envid_t ns_envid)
 	// Hint: When you IPC a page to the network server, it will be
 	// reading from it for a while, so don't immediately receive
 	// another packet in to the same physical page.
-
+	
 	int i, r;
 	
 	// Loop infinito
@@ -23,7 +23,8 @@ input(envid_t ns_envid)
 		// Leo un paquete del driver
 		nsipcbuf.pkt.jp_data[0] = 'a';
 		if ((r = sys_network_recv(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len)) < 0) {
-			// TODO: ver que hago aca
+			sys_yield();
+			continue;
 		}
 
 		// Envio el paquete al network server
