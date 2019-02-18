@@ -56,7 +56,6 @@ rx_descriptors_init(void) {
 	size_t i;
 	for (i = 0; i < RX_MAX_DESC; i ++) {
 		rx_descriptors[i].buffer_addr = PADDR(&rx_buffers[i]);
-		rx_descriptors[i].status |= E1000_RXD_STAT_DD;
 	}
 }
 
@@ -88,8 +87,6 @@ tx_registers_init(void) {
 void
 rx_registers_init(void) {
 	// Inicializo los registros Receive Address (RAL y RAH) apuntando a la MAC_ADDRESS
-	// TODO: ver si tengo que aplicar algun desplazamiento de bits aca
-	// TODO: ver si es correcto el E1000_ADDR_VALID
 	e1000_setreg(E1000_RAL0, MAC_ADDR_LOW);
 	e1000_setreg(E1000_RAH0, MAC_ADDR_HIGH | E1000_ADDR_VALID);
 

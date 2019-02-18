@@ -63,12 +63,12 @@
 
 /* Receive Control (RCTL) */
 /* (e1000_hw.h) */
-#define E1000_RCTL_EN             0x00000002    /* enable */
-#define E1000_RCTL_LPE_NO         0x00000000    /* long packet disabled */
-#define E1000_RCTL_LBM_NO         0x00000000    /* no loopback mode */
-#define E1000_RCTL_BAM            0x00008000    /* broadcast enable */
-#define E1000_RCTL_SZ_2048        0x00000000    /* rx buffer size 2048 */
-#define E1000_RCTL_SECRC          0x04000000    /* Strip Ethernet CRC */
+#define E1000_RCTL_EN       0x00000002  /* enable */
+#define E1000_RCTL_LPE_NO   0x00000000  /* long packet disabled */
+#define E1000_RCTL_LBM_NO   0x00000000  /* no loopback mode */
+#define E1000_RCTL_BAM      0x00008000  /* broadcast enable */
+#define E1000_RCTL_SZ_2048  0x00000000  /* rx buffer size 2048 */
+#define E1000_RCTL_SECRC    0x04000000  /* Strip Ethernet CRC */
 
 /* Transmit Inter Packet Gap (TIPG) */
 /* (Seccion 14.3.34 - Pag. 313) */
