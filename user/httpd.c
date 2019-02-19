@@ -246,23 +246,21 @@ send_file(struct http_request *req)
 	// LAB 6: Your code here.
 	//panic("send_file not implemented");
 
-	struct Fd *fd_store;
+	struct Stat st;
 
-	// Abro la url en solo lectura
 	if ((fd = open(req->url, O_RDONLY)) < 0) {
 		send_error(req, 404);
 	}
 	
-	// TODO: ver como chequear si es un directorio o no (stat->st_isdir???)
+	if ((r = fstat(fd, &st)) < 0) {
+		goto end;
+	}
 
-	// Obtengo el struct Fd
-	if ((r = fd_lookup(fd, &fd_store)) < 0) {
+	if (st.st_isdir) {
 		send_error(req, 404);
 	}
 
-	// Cargo file_size con el size del archivo
-	// TODO: ver si este es el size del archivo
-	file_size = fd_store->fd_offset;
+	file_size = st.st_size;
 
 	if ((r = send_header(req, 200)) < 0)
 		goto end;
