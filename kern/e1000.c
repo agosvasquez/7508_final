@@ -102,7 +102,7 @@ rx_registers_init(void) {
 	// RDH apunta al primer descriptor valido (rx_descriptors[0])
 	e1000_setreg(E1000_RDH, 0);
 	// RDH apunta al ultimo descriptor valido + 1 (rx_descriptors[RX_MAX_DESC])
-	e1000_setreg(E1000_RDT, RX_MAX_DESC);
+	e1000_setreg(E1000_RDT, RX_MAX_DESC - 1);
 
 	// Inicializo el registro Receive Control (RCTL)
 	uint32_t rctl_flags = 	E1000_RCTL_EN | E1000_RCTL_LPE_NO | E1000_RCTL_LBM_NO |
