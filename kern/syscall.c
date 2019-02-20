@@ -495,15 +495,11 @@ sys_network_send(const void *buf, size_t len) {
 // Recibe un paquete
 static int
 sys_network_recv(void *buf, size_t bufsize) {
-	// Mail de la lista - Problema con JOS Network Server
-	//uint8_t *p = buf;
-	//*(volatile uint8_t *) buf = *;
-
 	// Chequeo que el puntero recibido esta en un espacio de memoria permitido
 	user_mem_assert(curenv, buf, bufsize, PTE_U | PTE_P | PTE_W);
 
 	// Intento recibir un paquete
-	return e1000_send_packet(buf, bufsize);
+	return e1000_receive_packet(buf, bufsize);
 }
 
 // Dispatches to the correct kernel function, passing the arguments.

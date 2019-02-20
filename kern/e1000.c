@@ -99,9 +99,9 @@ rx_registers_init(void) {
 	e1000_setreg(E1000_RDLEN, sizeof(rx_descriptors));
 
 	// Inicializo los registros Receive Descriptor Head y Tail (RDH y RDT)
-	// RDH apunta al primer descriptor valido (rx_descriptors[0])
+	// RDH apunta al primer descriptor valido
+	// RDT apunta al ultimo descriptor valido
 	e1000_setreg(E1000_RDH, 0);
-	// RDH apunta al ultimo descriptor valido + 1 (rx_descriptors[RX_MAX_DESC])
 	e1000_setreg(E1000_RDT, RX_MAX_DESC - 1);
 
 	// Inicializo el registro Receive Control (RCTL)
@@ -174,10 +174,14 @@ e1000_send_packet(const void *buf, size_t len) {
 int
 e1000_receive_packet(void *buf, size_t bufsize) {
 	
-	int r = 0;
+	int r;
 
 	// Obtengo el indice en la queue dado por el tail register
 	uint32_t idx = e1000_getreg(E1000_RDT);
+
+	// Actualizo el registro RDT
+	idx = (idx + 1) % RX_MAX_DESC;
+	e1000_setreg(E1000_RDT, idx);
 
 	// Si el DD Bit esta en 1, puedo reciclar el descriptor y usarlo para recibir el paquete
 	bool is_dd_set = (rx_descriptors[idx].status & E1000_RXD_STAT_DD);
@@ -188,17 +192,16 @@ e1000_receive_packet(void *buf, size_t bufsize) {
 
 		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
 		rx_descriptors[idx].status &= ~E1000_RXD_STAT_DD;
-
-		// Seteo la longitud del paquete
-		rx_descriptors[idx].length = bufsize;
 		
 		// Para recibir un paquete, lo agrego al tail (TDT) de la cola de recepcion
 		// Esto equivale a copiar el paquete en el siguiente buffer
-		memcpy(rx_buffers[idx], buf, bufsize);
-		
-		// Actualizo el registro RDT
-		idx = (idx + 1) % RX_MAX_DESC;
-  		e1000_setreg(E1000_RDT, idx);
+		memcpy(buf, rx_buffers[idx], rx_descriptors[idx].length);
+
+		// Me guardo la cantidad de bytes a devolver
+		r = rx_descriptors[idx].length;
+
+		// Seteo la longitud del paquete
+		rx_descriptors[idx].length = bufsize;
 	} else {
 		// Devuelvo un codigo de error para que el caller de esta funcion
 		// sepa que no se recibio ningun paquete

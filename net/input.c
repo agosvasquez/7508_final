@@ -1,6 +1,6 @@
 #include "ns.h"
 
-#define SPIN_TIME	10
+#define SPIN_TIME	50
 
 extern union Nsipc nsipcbuf;
 
@@ -22,10 +22,13 @@ input(envid_t ns_envid)
 	while (1) {
 		// Leo un paquete del driver
 		nsipcbuf.pkt.jp_data[0] = 'a';
-		if ((r = sys_network_recv(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len)) < 0) {
+		if ((r = sys_network_recv(nsipcbuf.pkt.jp_data, sizeof(nsipcbuf.pkt.jp_data))) < 0) {
 			sys_yield();
 			continue;
 		}
+
+		//Asigno a jp_len la cantidad de bytes recibidos
+		nsipcbuf.pkt.jp_len = r;
 
 		// Envio el paquete al network server
 		ipc_send(ns_envid, NSREQ_INPUT, &nsipcbuf.pkt, PTE_P | PTE_W | PTE_U);
