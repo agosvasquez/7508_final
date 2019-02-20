@@ -1,0 +1,848 @@
+diff --git a/TP Final - SISOP.odt b/TP Final - SISOP.odt
+new file mode 100644
+index 0000000..ed8d444
+Binary files /dev/null and b/TP Final - SISOP.odt differ
+diff --git a/TP5.md b/TP5.md
+new file mode 100644
+index 0000000..27c3187
+--- /dev/null
++++ b/TP5.md
+@@ -0,0 +1,61 @@
++:octocat: TP5: Network Driver :octocat:
++========================
++ 
++-------------
++:clubs: Questions
++
++1. ¿How did you structure your transmit implementation? In particular, what do you do if the transmit ring is full?
++
++Mi proceso de transmisión de paquetes consta de los siguientes pasos:
++- Leo un paquete del network server
++- Compruebo que el request y el envid son los correctos
++- Envío el paquete al driver
++
++Si se envía un paquete al driver y la cola de transmisión está llena, se devuelve el error E_FULL_TX_QUEUE
++y no se hace nada con el paquete en cuestión: simplemente se pasa al siguiente.
++
++En particular, la función e1000_send_packet():
++- Obtiene el índice en la cola de transmisión a partir del registro TDT
++- Chequea el DD bit para ver si puede o no reciclar el descriptor actual y usarlo para transmitir el paquete
++- Si puede reciclarlo:
++	-> Setea varios flags y la longitud del paquete
++	-> Copia el paquete en el siguiente buffer (equivale a agregarlo a TDT)
++	-> Actualiza TDT
++- Si no:
++	-> Devuelve E_FULL_TX_QUEUE para informar al caller que no se pudo enviar el paquete
++
++
++2. How did you structure your receive implementation? In particular, what do you do if the receive queue is empty
++   and a user environment requests the next incoming packet?
++   
++Mi proceso de recepción de paquetes consta de los siguientes pasos:
++- Leo un paquete del driver
++- Me guardo la cantidad de bytes recibidos
++- Envío el paquete al network server
++- Spin por un tiempo para que el network server lea correctamente el paquete actual antes de leer el siguiente
++  en la misma pagina fisica
++  
++Si se solicita un paquete al driver y la cola de recepción está vacía, se devuelve el error E_EMPTY_RX_QUEUE,
++se desaloja el proceso actual en favor de otro (sys_yield) y se pasa al siguiente paquete.
++
++En particular, la función e1000_receive_packet():
++- Obtiene el índice en la cola de recepción a partir del registro RDT
++- Actualiza RDT
++- Chequea el DD bit para ver si puede o no reciclar el descriptor actual y usarlo para recibir el paquete
++- Si puede reciclarlo:
++	-> Setea varios flags y la longitud del paquete
++	-> Copia el siguiente buffer en el paquete (equivale a agregarlo a RDT)
++	-> Devuelve la cantidad de bytes recibidos
++- Si no:
++	-> Devuelve E_FULL_RX_QUEUE para informar al caller que no se recibió ningún paquete
++
++
++3. What does the web page served by JOS's web server say?
++
++La página web de JOS dice "This file came from JOS. Cheesy web page!".
++
++
++4. How long approximately did it take you to do this lab?
++
++Completar este lab me tomó aproximadamente tres (3) semanas.
++
+diff --git a/__pycache__/gradelib.cpython-36.pyc b/__pycache__/gradelib.cpython-36.pyc
+index 76881f5..a8deb21 100644
+Binary files a/__pycache__/gradelib.cpython-36.pyc and b/__pycache__/gradelib.cpython-36.pyc differ
+diff --git a/grade-lab5 b/grade-lab5
+index f8feb48..644e365 100755
+--- a/grade-lab5
++++ b/grade-lab5
+@@ -62,7 +62,8 @@ def test_spawn():
+ @test(5, "Protection I/O space")
+ def test_faultio():
+     r.user_test("spawnfaultio")
+-    r.match('TRAP')
++    r.match('  trap 0x0000000d General Protection',
++            no=['eflags wrong', 'faultio: made it here --- bug'])
+ 
+ @test(10, "PTE_SHARE [testpteshare]")
+ def test_pte_share():
+diff --git a/inc/error.h b/inc/error.h
+index 181e34c..1bb1bfb 100644
+--- a/inc/error.h
++++ b/inc/error.h
+@@ -25,6 +25,8 @@ enum {
+ 	E_FILE_EXISTS	,	// File already exists
+ 	E_NOT_EXEC	,	// File not a valid executable
+ 	E_NOT_SUPP	,	// Operation not supported
++	E_FULL_TX_QUEUE , // Transmision queue is full
++	E_EMPTY_RX_QUEUE , // Receive queue is empty 
+ 
+ 	MAXERROR
+ };
+diff --git a/inc/lib.h b/inc/lib.h
+index 66740e8..4e5d3eb 100644
+--- a/inc/lib.h
++++ b/inc/lib.h
+@@ -60,6 +60,8 @@ int	sys_page_unmap(envid_t env, void *pg);
+ int	sys_ipc_try_send(envid_t to_env, uint32_t value, void *pg, int perm);
+ int	sys_ipc_recv(void *rcv_pg);
+ unsigned int sys_time_msec(void);
++int sys_network_send(const void *buf, size_t len);
++int sys_network_recv(void *buf, size_t bufsize);
+ 
+ // This must be inlined.  Exercise for reader: why?
+ static inline envid_t __attribute__((always_inline))
+diff --git a/inc/syscall.h b/inc/syscall.h
+index 36f26de..24dce2d 100644
+--- a/inc/syscall.h
++++ b/inc/syscall.h
+@@ -18,6 +18,8 @@ enum {
+ 	SYS_ipc_try_send,
+ 	SYS_ipc_recv,
+ 	SYS_time_msec,
++	SYS_network_send,
++	SYS_network_recv,
+ 	NSYSCALLS
+ };
+ 
+diff --git a/kern/e1000.c b/kern/e1000.c
+index 7570e75..0ffe03a 100644
+--- a/kern/e1000.c
++++ b/kern/e1000.c
+@@ -1,3 +1,258 @@
++// LAB 6: Your driver code here
++
++#include <inc/error.h>
++#include <inc/string.h>
++
+ #include <kern/e1000.h>
++#include <kern/pci.h>
++#include <kern/pmap.h>
+ 
+-// LAB 6: Your driver code here
++// VA del BAR 0
++volatile uint8_t *e1000_bar0;
++
++// Array de Transmit Descriptors
++static struct tx_desc tx_descriptors[TX_MAX_DESC];
++
++// Array de Receive Descriptors
++static struct rx_desc rx_descriptors[RX_MAX_DESC];
++
++// Array de Transmit Packets Buffers
++static uint8_t tx_buffers[TX_MAX_DESC][TRANSMIT_BUF_SIZE];
++
++// Array de Receive Packets Buffers
++static uint8_t rx_buffers[RX_MAX_DESC][RECEIVE_BUF_SIZE];
++
++
++/*--------------------*/
++/* Funciones privadas */
++/*--------------------*/
++
++// Obtiene el valor del registro e1000_bar0[offset]
++static uint32_t
++e1000_getreg(uint32_t offset) {
++  return *(volatile uint32_t *) (e1000_bar0 + offset);
++}
++
++// Escribe el valor en el registro e1000_bar0[offset]
++static void
++e1000_setreg(uint32_t offset, uint32_t value)
++{
++  *(volatile uint32_t *) (e1000_bar0 + offset) = value;
++}
++
++// Inicializa los transmit descriptors
++void
++tx_descriptors_init(void) {
++	size_t i;
++	for (i = 0; i < TX_MAX_DESC; i ++) {
++		tx_descriptors[i].buffer_addr = PADDR(&tx_buffers[i]);
++		tx_descriptors[i].status |= E1000_TXD_STAT_DD;
++	}
++}
++
++// Inicializa los receive descriptors
++void
++rx_descriptors_init(void) {
++	size_t i;
++	for (i = 0; i < RX_MAX_DESC; i ++) {
++		rx_descriptors[i].buffer_addr = PADDR(&rx_buffers[i]);
++	}
++}
++
++// Inicializa los registros BAR del transmit array
++void
++tx_registers_init(void) {
++	// Inicializo los registros Transmit Descriptor Base Address (TDBAL y TDBAH)
++	uint64_t array_addr = PADDR(tx_descriptors);
++	e1000_setreg(E1000_TDBAL, array_addr);
++	e1000_setreg(E1000_TDBAH, 0);
++
++	// Inicializo el registro Transmit Descriptor Length (TDLEN)
++	e1000_setreg(E1000_TDLEN, sizeof(tx_descriptors));
++
++	// Inicializo los registros Transmit Descriptor Head y Tail (TDH y TDT)
++	e1000_setreg(E1000_TDH, 0);
++	e1000_setreg(E1000_TDT, 0);
++
++	// Inicializo el registro Transmit Control (TCTL)
++	uint32_t tctl_flags = E1000_TCTL_EN | E1000_TCTL_PSP | E1000_TCTL_CT | E1000_TCTL_COLD;
++	e1000_setreg(E1000_TCTL, tctl_flags);
++
++	// Inicializo el registro Transmit Inter Packet Gap (TIPG)
++	uint32_t tipg_flags = E1000_TIPG_IPGT | E1000_TIPG_IPGR1 | E1000_TIPG_IPGR2;
++	e1000_setreg(E1000_TIPG, tipg_flags);
++}
++
++// Inicializa los registros BAR del receive array
++void
++rx_registers_init(void) {
++	// Inicializo los registros Receive Address (RAL y RAH) apuntando a la MAC_ADDRESS
++	e1000_setreg(E1000_RAL0, MAC_ADDR_LOW);
++	e1000_setreg(E1000_RAH0, MAC_ADDR_HIGH | E1000_ADDR_VALID);
++
++	// Inicializo los registros Receive Descriptor Base Address (RDBAL y RDBAH)
++	uint64_t array_addr = PADDR(rx_descriptors);
++	e1000_setreg(E1000_RDBAL, array_addr);
++	e1000_setreg(E1000_RDBAH, 0);
++
++	// Inicializo el registro Receive Descriptor Length (RDLEN)
++	e1000_setreg(E1000_RDLEN, sizeof(rx_descriptors));
++
++	// Inicializo los registros Receive Descriptor Head y Tail (RDH y RDT)
++	// RDH apunta al primer descriptor valido
++	// RDT apunta al ultimo descriptor valido
++	e1000_setreg(E1000_RDH, 0);
++	e1000_setreg(E1000_RDT, RX_MAX_DESC - 1);
++
++	// Inicializo el registro Receive Control (RCTL)
++	uint32_t rctl_flags = 	E1000_RCTL_EN | E1000_RCTL_LPE_NO | E1000_RCTL_LBM_NO |
++			 				E1000_RCTL_BAM | E1000_RCTL_SZ_2048 | E1000_RCTL_SECRC;
++	e1000_setreg(E1000_RCTL, rctl_flags);
++}
++
++// Inicializa la cola de transmision
++void
++e1000_init_transmit_queue(void) {
++	// Inicializo cada transmit descriptor con el array tx_buffers
++	tx_descriptors_init();
++
++	// Inicializo los registros
++	tx_registers_init();
++}
++
++// Inicializa la cola de recepcion
++void
++e1000_init_receive_queue(void) {
++	// Inicializo cada receive descriptor con el array rx_buffers
++	rx_descriptors_init();
++
++	// Inicializo los registros
++	rx_registers_init();	
++}
++
++// Transmite un paquete
++int
++e1000_send_packet(const void *buf, size_t len) {
++
++	int r = 0;
++
++	// Obtengo el indice en la queue dado por el tail register
++	uint32_t idx = e1000_getreg(E1000_TDT);
++
++	// Si el DD Bit esta en 1, puedo reciclar el descriptor y usarlo para transmitir el paquete
++	bool is_dd_set = (tx_descriptors[idx].status & E1000_TXD_STAT_DD);
++
++	if (is_dd_set) {
++		// Seteo el RS y el EOP bit del Command Field en 1
++		// Los desplazo 24 bits ya que ahi empieza el command field del descriptor
++		uint32_t cmd_flags = (E1000_TXD_CMD_RS >> 24) | (E1000_TXD_CMD_EOP >> 24);
++		tx_descriptors[idx].cmd |= cmd_flags;
++		
++		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
++		tx_descriptors[idx].status &= ~E1000_TXD_STAT_DD;
++
++		// Seteo la longitud del paquete
++		tx_descriptors[idx].length = len;
++		
++		// Para transmitir un paquete, lo agrego al tail (TDT) de la cola de transmision
++		// Esto equivale a copiar el paquete en el siguiente buffer
++		memcpy(tx_buffers[idx], buf, len);
++		
++		// Actualizo el registro TDT
++		idx = (idx + 1) % TX_MAX_DESC;
++  		e1000_setreg(E1000_TDT, idx);
++	} else {
++		// Devuelvo un codigo de error para que el caller de esta funcion
++		// sepa que el paquete no se pudo enviar
++		r = -E_FULL_TX_QUEUE;
++	}
++
++	return r;
++}
++
++// Recibe un paquete
++int
++e1000_receive_packet(void *buf, size_t bufsize) {
++	
++	int r;
++
++	// Obtengo el indice en la queue dado por el tail register
++	uint32_t idx = e1000_getreg(E1000_RDT);
++
++	// Actualizo el registro RDT
++	idx = (idx + 1) % RX_MAX_DESC;
++	e1000_setreg(E1000_RDT, idx);
++
++	// Si el DD Bit esta en 1, puedo reciclar el descriptor y usarlo para recibir el paquete
++	bool is_dd_set = (rx_descriptors[idx].status & E1000_RXD_STAT_DD);
++	
++	if (is_dd_set) {
++		// Seteo el EOP bit del Status en 1
++		rx_descriptors[idx].status |= E1000_RXD_STAT_EOP;
++
++		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
++		rx_descriptors[idx].status &= ~E1000_RXD_STAT_DD;
++		
++		// Para recibir un paquete, lo agrego al tail (RDT) de la cola de recepcion
++		// Esto equivale a copiar siguiente buffer en el paquete
++		memcpy(buf, rx_buffers[idx], rx_descriptors[idx].length);
++
++		// Me guardo la cantidad de bytes a devolver
++		r = rx_descriptors[idx].length;
++
++		// Seteo la longitud del paquete
++		rx_descriptors[idx].length = bufsize;
++	} else {
++		// Devuelvo un codigo de error para que el caller de esta funcion
++		// sepa que no se recibio ningun paquete
++		r = -E_EMPTY_RX_QUEUE;
++	}
++	
++	return r;
++}
++
++/*--------------------*/
++/* Funciones publicas */
++/*--------------------*/
++
++// Inicializa el E1000
++int
++e1000_attach(struct pci_func *pcif) {
++	// Habilito el E1000 device
++	pci_func_enable(pcif);
++
++	// Creo un mapeo virtual para el BAR 0 (Base Address Register)
++	uint32_t reg_base0 = pcif->reg_base[0];
++	uint32_t reg_size0 = pcif->reg_size[0];
++	e1000_bar0 = mmio_map_region(reg_base0, reg_size0);
++
++	// Compruebo que el status es el correcto (0x80080783)
++	/*
++	uint32_t status = e1000_getreg(E1000_STATUS);
++	cprintf("0x%x\n", status);
++	*/
++
++	// Inicializo la cola de transmision
++	e1000_init_transmit_queue();
++
++	// Compruebo que el paquete se transmite correctamente
++	/*
++	e1000_send_packet("Hola", 4);
++	e1000_send_packet("Mundo", 5);
++	e1000_send_packet("Como", 4);
++	e1000_send_packet("Estan?", 6);
++	*/
++
++	// Inicializo la cola de recepcion
++	e1000_init_receive_queue();
++
++	// Compruebo que el paquete se recibe correctamente
++	/*
++	e1000_receive_packet("Hola", 4);
++	e1000_receive_packet("Mundo", 5);
++	e1000_receive_packet("Como", 4);
++	e1000_receive_packet("Estan?", 6);
++	*/
++	
++	return 0;
++}
+diff --git a/kern/e1000.h b/kern/e1000.h
+index abdf80d..920cfe8 100644
+--- a/kern/e1000.h
++++ b/kern/e1000.h
+@@ -1,4 +1,122 @@
+ #ifndef JOS_KERN_E1000_H
+ #define JOS_KERN_E1000_H
+ 
++#include <kern/pci.h>
++
++
++/*------------*/
++/* Constantes */
++/*------------*/
++
++/* E1000 MAC Address */
++/* 52:54:00:12:34:56 */
++/* (Lab 6 - Ej. 10) */
++#define MAC_ADDR_HIGH       0x00005634  /* High order 16 bits (34:56) */
++#define MAC_ADDR_LOW        0x12005452  /* Low order 32 bits (52:54:00:12) */
++
++/* Device Status - RO */
++/* (e1000_hw.h) */
++#define E1000_STATUS        0x00008
++
++/* Transmit Descriptor Registers Set */
++/* (e1000_hw.h) */
++#define E1000_TCTL     		0x00400  	/* TX Control - RW */
++#define E1000_TIPG     		0x00410  	/* TX Inter-packet gap -RW */
++#define E1000_TDBAL    		0x03800  	/* TX Descriptor Base Address Low - RW */
++#define E1000_TDBAH    		0x03804  	/* TX Descriptor Base Address High - RW */
++#define E1000_TDLEN    		0x03808  	/* TX Descriptor Length - RW */
++#define E1000_TDH      		0x03810  	/* TX Descriptor Head - RW */
++#define E1000_TDT      		0x03818  	/* TX Descripotr Tail - RW */
++
++/* Receive Descriptor Registers Set */
++/* (e1000_hw.h) */
++#define E1000_RCTL          0x00100     /* RX Control - RW */
++#define E1000_RDBAL         0x02800     /* RX Descriptor Base Address Low - RW */
++#define E1000_RDBAH         0x02804     /* RX Descriptor Base Address High - RW */
++#define E1000_RDLEN         0x02808     /* RX Descriptor Length - RW */
++#define E1000_RDH           0x02810     /* RX Descriptor Head - RW */
++#define E1000_RDT           0x02818     /* RX Descriptor Tail - RW */
++/* (Tabla 13.2 - Pag. 220) */
++#define E1000_RAL0          0x05400     /* Receive Address Register Low 0 */
++#define E1000_RAH0          0x05404     /* Receive Address Register High 0 */
++/* (Tabla 13.91 - Pag. 330) */
++#define E1000_ADDR_VALID    0x80000000  /* Address Valid (bit 31) para RAH */ 
++
++/* Transmit Descriptor bit definitions */
++/* (e1000_hw.h) */
++#define E1000_TXD_CMD_EOP   0x01000000  /* End of Packet */
++#define E1000_TXD_CMD_RS    0x08000000  /* Report Status */
++#define E1000_TXD_STAT_DD   0x00000001 	/* Descriptor Done */
++
++/* Receive Descriptor bit definitions */
++/* (e1000_hw.h) */
++#define E1000_RXD_STAT_DD   0x01        /* Descriptor Done */
++#define E1000_RXD_STAT_EOP  0x02        /* End of Packet */
++
++/* Transmit Control (TCTL) */
++/* (e1000_hw.h) */
++#define E1000_TCTL_EN     	0x00000002	/* enable tx */
++#define E1000_TCTL_PSP    	0x00000008	/* pad short packets */
++/* (Seccion 14.5 - Pag. 378) */
++#define E1000_TCTL_CT     	0x00000010	/* collision threshold (10h) */
++#define E1000_TCTL_COLD   	0x00000040  /* collision distance (40h) */
++
++/* Receive Control (RCTL) */
++/* (e1000_hw.h) */
++#define E1000_RCTL_EN       0x00000002  /* enable */
++#define E1000_RCTL_LPE_NO   0x00000000  /* long packet disabled */
++#define E1000_RCTL_LBM_NO   0x00000000  /* no loopback mode */
++#define E1000_RCTL_BAM      0x00008000  /* broadcast enable */
++#define E1000_RCTL_SZ_2048  0x00000000  /* rx buffer size 2048 */
++#define E1000_RCTL_SECRC    0x04000000  /* Strip Ethernet CRC */
++
++/* Transmit Inter Packet Gap (TIPG) */
++/* (Seccion 14.3.34 - Pag. 313) */
++#define E1000_TIPG_IPGT     10
++#define E1000_TIPG_IPGR1    4
++#define E1000_TIPG_IPGR2    6
++
++/* Variables globales */
++#define TX_MAX_DESC			56			/* Cantidad maxima de transmit descriptors en el tx_array */
++#define RX_MAX_DESC         128         /* Cantidad maxima de receive descriptors en el rx_array */
++#define TRANSMIT_BUF_SIZE	1518		/* Tamaño maximo en bytes un Ethernet packet */     
++#define RECEIVE_BUF_SIZE    2048        /* Viene dado por E1000_RCTL_SZ_2048 */
++
++
++/*-------------*/
++/* Estructuras */
++/*-------------*/
++
++/* Transmit Descriptor - Legacy Mode */
++/* (Seccion 3.3.3 - Pag. 36) */
++struct tx_desc {
++    uint64_t buffer_addr;	/* Address of the descriptor's data buffer */
++    uint16_t length;    	/* Data buffer length */
++    uint8_t cso;        	/* Checksum offset */
++    uint8_t cmd;        	/* Descriptor control */
++    uint8_t status;     	/* Descriptor status */
++    uint8_t css;        	/* Checksum start */
++    uint16_t special;
++};
++
++/* Receive Descriptor */
++/* e1000_hw.h */
++struct rx_desc {
++    uint64_t buffer_addr; 	/* Address of the descriptor's data buffer */
++    uint16_t length;     	/* Length of data DMAed into data buffer */
++    uint16_t csum;       	/* Packet checksum */
++    uint8_t status;      	/* Descriptor status */
++    uint8_t errors;      	/* Descriptor Errors */
++    uint16_t special;
++};
++
++
++/*-----------*/
++/* Funciones */
++/*-----------*/
++
++int e1000_attach(struct pci_func *pcif);
++int e1000_send_packet(const void *buf, size_t len);
++int e1000_receive_packet(void *buf, size_t bufsize);
++
+ #endif  // JOS_KERN_E1000_H
+diff --git a/kern/pci.c b/kern/pci.c
+index 784e072..049c494 100644
+--- a/kern/pci.c
++++ b/kern/pci.c
+@@ -31,6 +31,8 @@ struct pci_driver pci_attach_class[] = {
+ // pci_attach_vendor matches the vendor ID and device ID of a PCI device. key1
+ // and key2 should be the vendor ID and device ID respectively
+ struct pci_driver pci_attach_vendor[] = {
++	// LAB 6: agrego el vendor ID y device ID del 82540EM
++	{ 0x8086, 0x100e, &e1000_attach},
+ 	{ 0, 0, 0 },
+ };
+ 
+diff --git a/kern/syscall.c b/kern/syscall.c
+index 7e3b224..fd7b9cd 100644
+--- a/kern/syscall.c
++++ b/kern/syscall.c
+@@ -12,6 +12,7 @@
+ #include <kern/console.h>
+ #include <kern/sched.h>
+ #include <kern/time.h>
++#include <kern/e1000.h>
+ 
+ // Print a string to the system console.
+ // The string is exactly 'len' characters long.
+@@ -159,10 +160,8 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+ 	}
+ 
+ 	// Chequeo que tf apunte a memoria de usuario valida
+-	uintptr_t stack_top = tf->tf_esp;
+-	uintptr_t stack_bottom = stack_top - sizeof(struct Trapframe);
+ 	user_mem_assert(e,
+-	                (const void *) stack_bottom,
++	                (const void *) tf,
+ 	                sizeof(struct Trapframe),
+ 	                PTE_U | PTE_P | PTE_W);
+ 
+@@ -175,6 +174,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+ 	e->env_tf.tf_ss |= 3;
+ 	e->env_tf.tf_cs |= 3;
+ 
++	e->env_tf.tf_eflags &= ~FL_IOPL_3;
+ 	// Le habilito interrupciones y pongo el IOPL a 0
+ 	e->env_tf.tf_eflags |= (FL_IF | FL_IOPL_0);
+ 
+@@ -477,7 +477,29 @@ static int
+ sys_time_msec(void)
+ {
+ 	// LAB 6: Your code here.
+-	panic("sys_time_msec not implemented");
++	//panic("sys_time_msec not implemented");
++
++	return time_msec();
++}
++
++// Transmite un paquete
++static int
++sys_network_send(const void *buf, size_t len) {
++	// Chequeo que el puntero recibido esta en un espacio de memoria permitido
++	user_mem_assert(curenv, buf, len, PTE_U | PTE_P | PTE_W);
++
++	// Intento enviar un paquete
++	return e1000_send_packet(buf, len);
++}
++
++// Recibe un paquete
++static int
++sys_network_recv(void *buf, size_t bufsize) {
++	// Chequeo que el puntero recibido esta en un espacio de memoria permitido
++	user_mem_assert(curenv, buf, bufsize, PTE_U | PTE_P | PTE_W);
++
++	// Intento recibir un paquete
++	return e1000_receive_packet(buf, bufsize);
+ }
+ 
+ // Dispatches to the correct kernel function, passing the arguments.
+@@ -507,26 +529,25 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+ 	case SYS_page_alloc:
+ 		return sys_page_alloc((envid_t) a1, (void *) a2, (int) a3);
+ 	case SYS_page_map:
+-		return sys_page_map((envid_t) a1,
+-		                    (void *) a2,
+-		                    (envid_t) a3,
+-		                    (void *) a4,
+-		                    (int) a5,
+-		                    1);
++		return sys_page_map((envid_t) a1, (void *) a2, (envid_t) a3, (void *) a4, (int) a5, 1);
+ 	case SYS_page_unmap:
+ 		return sys_page_unmap((envid_t) a1, (void *) a2);
+ 	case SYS_env_set_status:
+ 		return sys_env_set_status((envid_t) a1, (int) a2);
+ 	case SYS_ipc_try_send:
+-		return sys_ipc_try_send(
+-		        (envid_t) a1, (uint32_t) a2, (void *) a3, (unsigned) a4);
++		return sys_ipc_try_send((envid_t) a1, (uint32_t) a2, (void *) a3, (unsigned) a4);
+ 	case SYS_ipc_recv:
+ 		return sys_ipc_recv((void *) a1);
+ 	case SYS_env_set_pgfault_upcall:
+ 		return sys_env_set_pgfault_upcall((envid_t) a1, (void *) a2);
+ 	case SYS_env_set_trapframe:
+-		return sys_env_set_trapframe((envid_t) a1,
+-		                             (struct Trapframe *) a2);
++		return sys_env_set_trapframe((envid_t) a1, (struct Trapframe *) a2);
++	case SYS_time_msec:
++		return sys_time_msec();
++	case SYS_network_send:
++		return sys_network_send((const void *) a1, (size_t) a2);
++	case SYS_network_recv:
++		return sys_network_recv((void *) a1, (size_t) a2);
+ 	default:
+ 		return -E_INVAL;
+ 	}
+diff --git a/kern/trap.c b/kern/trap.c
+index 3f08888..82e3190 100644
+--- a/kern/trap.c
++++ b/kern/trap.c
+@@ -300,18 +300,18 @@ trap_dispatch(struct Trapframe *tf)
+ 	// Handle clock interrupts. Don't forget to acknowledge the
+ 	// interrupt using lapic_eoi() before calling the scheduler!
+ 	// LAB 4: Your code here.
++	
++	// Add time tick increment to clock interrupts.
++	// Be careful! In multiprocessors, clock interrupts are
++	// triggered on every CPU.
++	// LAB 6: Your code here.
+ 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
++		time_tick();
+ 		lapic_eoi();
+ 		sched_yield();
+ 		return;
+ 	}
+ 
+-	// Add time tick increment to clock interrupts.
+-	// Be careful! In multiprocessors, clock interrupts are
+-	// triggered on every CPU.
+-	// LAB 6: Your code here.
+-
+-
+ 	// Handle keyboard and serial interrupts.
+ 	// LAB 5: Your code here.
+ 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_KBD) {
+diff --git a/lib/file.c b/lib/file.c
+index 8cce76f..5425514 100644
+--- a/lib/file.c
++++ b/lib/file.c
+@@ -146,13 +146,15 @@ devfile_write(struct Fd *fd, const void *buf, size_t n)
+ 	int r;
+ 
+ 	fsipcbuf.write.req_fileid = fd->fd_file.id;
+-	fsipcbuf.write.req_n = n;
+ 
+-	assert(n <= PGSIZE);
++	bool larger_size = n > sizeof(fsipcbuf.write.req_buf);
++	fsipcbuf.write.req_n = larger_size ? sizeof(fsipcbuf.write.req_buf) : n;
+ 
+-	memmove(fsipcbuf.write.req_buf, buf, n);
+-	if ((r = fsipc(FSREQ_WRITE, NULL)) < 0)
++	memmove(fsipcbuf.write.req_buf, buf, fsipcbuf.write.req_n);
++
++	if ((r = fsipc(FSREQ_WRITE, NULL)) < 0) {
+ 		return r;
++	}
+ 
+ 	return r;
+ }
+diff --git a/lib/printfmt.c b/lib/printfmt.c
+index 3df6bee..147c610 100644
+--- a/lib/printfmt.c
++++ b/lib/printfmt.c
+@@ -35,6 +35,8 @@ static const char * const error_string[MAXERROR] =
+ 	[E_FILE_EXISTS]	= "file already exists",
+ 	[E_NOT_EXEC]	= "file is not a valid executable",
+ 	[E_NOT_SUPP]	= "operation not supported",
++	[E_FULL_TX_QUEUE] = "transmision queue is full",
++	[E_EMPTY_RX_QUEUE] = "receive queue is empty",
+ };
+ 
+ /*
+diff --git a/lib/syscall.c b/lib/syscall.c
+index 9e1a1d9..2e8e2d4 100644
+--- a/lib/syscall.c
++++ b/lib/syscall.c
+@@ -122,3 +122,15 @@ sys_time_msec(void)
+ {
+ 	return (unsigned int) syscall(SYS_time_msec, 0, 0, 0, 0, 0, 0);
+ }
++
++int
++sys_network_send(const void *buf, size_t len)
++{
++	return syscall(SYS_network_send, 0, (uint32_t) buf, len, 0, 0, 0);
++}
++
++int
++sys_network_recv(void *buf, size_t bufsize)
++{
++	return syscall(SYS_network_recv, 0, (uint32_t) buf, bufsize, 0, 0, 0);
++}
+\ No newline at end of file
+diff --git a/net/input.c b/net/input.c
+index 4e08f0f..19c21a6 100644
+--- a/net/input.c
++++ b/net/input.c
+@@ -1,5 +1,7 @@
+ #include "ns.h"
+ 
++#define SPIN_TIME	100
++
+ extern union Nsipc nsipcbuf;
+ 
+ void
+@@ -13,4 +15,28 @@ input(envid_t ns_envid)
+ 	// Hint: When you IPC a page to the network server, it will be
+ 	// reading from it for a while, so don't immediately receive
+ 	// another packet in to the same physical page.
++	
++	int i, r;
++	
++	// Loop infinito
++	while (1) {
++		// Leo un paquete del driver
++		nsipcbuf.pkt.jp_data[0] = 'a';
++		if ((r = sys_network_recv(nsipcbuf.pkt.jp_data, sizeof(nsipcbuf.pkt.jp_data))) < 0) {
++			sys_yield();
++			continue;
++		}
++
++		// Asigno a jp_len la cantidad de bytes recibidos
++		nsipcbuf.pkt.jp_len = r;
++
++		// Envio el paquete al network server
++		ipc_send(ns_envid, NSREQ_INPUT, &nsipcbuf.pkt, PTE_P | PTE_W | PTE_U);
++
++		// Spin para esperar que el network server lea correctamente el paquete actual
++		// antes de leer el siguiente en la misma pagina fisica
++		for (i = 0; i < SPIN_TIME; i++) {
++			sys_yield();
++		}
++	}
+ }
+diff --git a/net/output.c b/net/output.c
+index f577c4e..b17959c 100644
+--- a/net/output.c
++++ b/net/output.c
+@@ -10,4 +10,21 @@ output(envid_t ns_envid)
+ 	// LAB 6: Your code here:
+ 	// 	- read a packet from the network server
+ 	//	- send the packet to the device driver
++	
++	int r, type, perm;
++	envid_t sender; 
++	
++	// Loop infinito
++	while (1) {
++		// Leo un paquete del network server y lo guardo en nsipcbuf.pkt
++		type = ipc_recv(&sender, &nsipcbuf.pkt, &perm);
++
++		// Compruebo que el request y el envid son los correctos
++		if (type == NSREQ_OUTPUT && sender == ns_envid) {
++			// Envio el paquete al driver
++			if ((r = sys_network_send(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len)) < 0) {
++				continue;
++			}
++		}
++	}
+ }
+diff --git a/user/faultio.c b/user/faultio.c
+index 4308a65..7e5b2a1 100644
+--- a/user/faultio.c
++++ b/user/faultio.c
+@@ -18,5 +18,5 @@ umain(int argc, char **argv)
+ 	// fault, because user-level code shouldn't be able to use the io space.
+ 	outb(0x1F6, 0xE0 | (1<<4));
+ 
+-        cprintf("%s: made it here --- bug\n");
++        cprintf("faultio: made it here --- bug\n");
+ }
+diff --git a/user/httpd.c b/user/httpd.c
+index af1979a..29de0bc 100644
+--- a/user/httpd.c
++++ b/user/httpd.c
+@@ -78,7 +78,22 @@ static int
+ send_data(struct http_request *req, int fd)
+ {
+ 	// LAB 6: Your code here.
+-	panic("send_data not implemented");
++	//panic("send_data not implemented");
++
++	int r;
++	char buffer[BUFFSIZE];
++
++	// Obtengo la data asociada al fd
++	if ((r = read(fd, buffer, BUFFSIZE)) < 0) {
++		return -1;
++	}
++
++	// Escribo la data en el http_request
++	if (write(req->sock, buffer, r) != r) {
++		return -1;
++	}
++
++	return 0;
+ }
+ 
+ static int
+@@ -229,7 +244,23 @@ send_file(struct http_request *req)
+ 	// set file_size to the size of the file
+ 
+ 	// LAB 6: Your code here.
+-	panic("send_file not implemented");
++	//panic("send_file not implemented");
++
++	struct Stat st;
++
++	if ((fd = open(req->url, O_RDONLY)) < 0) {
++		send_error(req, 404);
++	}
++	
++	if ((r = fstat(fd, &st)) < 0) {
++		goto end;
++	}
++
++	if (st.st_isdir) {
++		send_error(req, 404);
++	}
++
++	file_size = st.st_size;
+ 
+ 	if ((r = send_header(req, 200)) < 0)
+ 		goto end;
