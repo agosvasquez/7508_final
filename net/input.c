@@ -1,6 +1,6 @@
 #include "ns.h"
 
-#define SPIN_TIME	50
+#define SPIN_TIME	100
 
 extern union Nsipc nsipcbuf;
 
