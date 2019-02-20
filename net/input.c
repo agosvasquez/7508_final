@@ -27,7 +27,7 @@ input(envid_t ns_envid)
 			continue;
 		}
 
-		//Asigno a jp_len la cantidad de bytes recibidos
+		// Asigno a jp_len la cantidad de bytes recibidos
 		nsipcbuf.pkt.jp_len = r;
 
 		// Envio el paquete al network server

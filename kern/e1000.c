@@ -193,8 +193,8 @@ e1000_receive_packet(void *buf, size_t bufsize) {
 		// Seteo el DD Bit del Status en 0, para indicar que esta en uso
 		rx_descriptors[idx].status &= ~E1000_RXD_STAT_DD;
 		
-		// Para recibir un paquete, lo agrego al tail (TDT) de la cola de recepcion
-		// Esto equivale a copiar el paquete en el siguiente buffer
+		// Para recibir un paquete, lo agrego al tail (RDT) de la cola de recepcion
+		// Esto equivale a copiar siguiente buffer en el paquete
 		memcpy(buf, rx_buffers[idx], rx_descriptors[idx].length);
 
 		// Me guardo la cantidad de bytes a devolver
